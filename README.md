@@ -121,10 +121,10 @@ export PATH="$HOME/xpack-riscv-none-elf-gcc-14.2.0-3/bin:$PATH"
 
 ## Verification
 
-- ✅ Bit-for-bit identical to scalar reference (max diff = 0)
-- ✅ Vector-length agnostic (uses vsetvl)  
-- ✅ Buildable on RV32 and RV64
-- ✅ Optimized saturation using vnclip
+- Bit-for-bit identical to scalar reference (max diff = 0) (Done)
+- Vector-length agnostic (uses vsetvl)  (Done)
+- Buildable on RV32 and RV64  (Done)
+- Optimized saturation using vnclip (Done)
 
 ---
 
