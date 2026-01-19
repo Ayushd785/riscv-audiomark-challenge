@@ -18,7 +18,7 @@ Computes: `y[i] = clamp(a[i] + alpha * b[i], -32768, 32767)`
 
 **Problem:** Multiplying two 16-bit numbers can produce a 32-bit result. For example, `32767 * 32767 = 1,073,676,289` which overflows 16-bit range.
 
-**Solution:** Use `vwmul` (Vector Widening Multiply) to expand 16-bit inputs into 32-bit intermediate registers before multiplication. This prevents overflow during the arithmetic.
+**Solution:** Use `vwmul` (Vector Widening Multiply) to expand 16-bit inputs into 32-bit elements. We use LMUL=2 for the widened values (`vint32m2_t`) to maintain the same vector length as the input (`vint16m1_t`). This prevents overflow during arithmetic.
 
 ```c
 vint32m2_t prod = __riscv_vwmul_vx_i32m2(vb, alpha, vl);   // 16-bit → 32-bit
@@ -103,14 +103,18 @@ On a processor with VLEN=128 (processing 8 x 16-bit elements per cycle):
 ## Build & Run
 
 ```bash
-# Install toolchain
+make rv64 RV64_PREFIX=riscv-none-elf-
+qemu-riscv64 -cpu rv64,v=true build/q15_axpy_rv64.elf
+```
+
+### Prerequisites (Optional)
+
+If you don't have a RISC-V toolchain:
+
+```bash
 wget https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-3/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
 tar -xzf xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
 export PATH="$HOME/xpack-riscv-none-elf-gcc-14.2.0-3/bin:$PATH"
-
-# Build and run
-make rv64 RV64_PREFIX=riscv-none-elf-
-qemu-riscv64 -cpu rv64,v=true build/q15_axpy_rv64.elf
 ```
 
 ---
