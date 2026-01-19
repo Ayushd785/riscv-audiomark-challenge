@@ -32,46 +32,32 @@ vint32m2_t sum = __riscv_vwadd_wv_i32m2(prod, va, vl);     // keep in 32-bit
 **Solution:** Use `vnclip` (Vector Narrowing Clip) which handles narrowing and saturation in a single instruction. This is more efficient than separate vmax/vmin/vnsra instructions.
 
 ```c
-// Single instruction: saturate + narrow
 vint16m1_t vy = __riscv_vnclip_wx_i16m1(sum, 0, __RISCV_VXRM_RNU, vl);
 ```
 
-The shift amount is 0 because we want the exact value, not a scaled version.
-
 ### 3. Vector-Length Agnostic (VLA) Approach
 
-**Problem:** Different RISC-V implementations have different vector lengths (128-bit, 256-bit, 512-bit, etc.).
+**Problem:** Different RISC-V implementations have different vector lengths (128-bit, 256-bit, 512-bit).
 
-**Solution:** Use a strip-mining loop with `vsetvl` to process data in hardware-determined chunks. The loop dynamically queries how many elements can be processed per iteration.
+**Solution:** Use a strip-mining loop with `vsetvl` to process data in hardware-determined chunks.
 
 ```c
 while (remaining > 0) {
-    size_t vl = __riscv_vsetvl_e16m1(remaining);  // ask hardware for chunk size
+    size_t vl = __riscv_vsetvl_e16m1(remaining);
     // ... process vl elements ...
     remaining -= vl;
 }
 ```
 
-This ensures portability across all RISC-V Vector implementations without code changes.
+This ensures portability across all RISC-V Vector implementations.
 
 ---
 
-## Build & Run
+## Results
 
-```bash
-# Install toolchain
-wget https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-3/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
-tar -xzf xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
-export PATH="$HOME/xpack-riscv-none-elf-gcc-14.2.0-3/bin:$PATH"
+### QEMU Simulation
 
-# Build and run
-make rv64 RV64_PREFIX=riscv-none-elf-
-qemu-riscv64 -cpu rv64,v=true build/q15_axpy_rv64.elf
-```
-
----
-
-## Results (QEMU)
+![QEMU Results](results.png)
 
 ```
 Edge case tests:
@@ -87,17 +73,45 @@ RVV:    562522 cycles (137.33 per element)
 Verify: PASS (max diff = 0)
 ```
 
-Note: RVV appears slower in QEMU due to emulation overhead. On real hardware, expect 5-15x speedup.
+### Why RVV Appears Slower in QEMU
+
+**Important:** The cycle counts above are from QEMU, which is a software emulator, not real hardware.
+
+QEMU uses **TCG (Tiny Code Generator)** to translate RISC-V instructions to x86. For vector instructions:
+- Each RVV instruction is decoded and emulated one at a time
+- There's no actual SIMD parallelism - it's just a software loop
+- The overhead of interpreting complex vector semantics dominates
+
+**On real RISC-V hardware with RVV support**, vector instructions execute in parallel across multiple lanes, giving the expected speedup.
+
+### Theoretical Speedup (Real Hardware)
+
+On a processor with VLEN=128 (processing 8 x 16-bit elements per cycle):
+
+| Component | Scalar | Vector (8 lanes) |
+|-----------|--------|------------------|
+| Loads | 2 cycles | 2 cycles (8 elements each) |
+| Multiply | 1 cycle | 1 cycle (8 in parallel) |
+| Add | 1 cycle | 1 cycle (8 in parallel) |
+| Saturate+Store | 2 cycles | 2 cycles (8 elements) |
+| **Per element** | ~5 cycles | ~0.75 cycles |
+
+**Expected speedup: ~6-8x** for VLEN=128, scaling higher for wider implementations.
 
 ---
 
-## Expected Speedup (Real Hardware)
+## Build & Run
 
-| VLEN | Elements/iter | Expected Speedup |
-|------|---------------|------------------|
-| 128  | 8             | 4-6x             |
-| 256  | 16            | 8-12x            |
-| 512  | 32            | 15-20x           |
+```bash
+# Install toolchain
+wget https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v14.2.0-3/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
+tar -xzf xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
+export PATH="$HOME/xpack-riscv-none-elf-gcc-14.2.0-3/bin:$PATH"
+
+# Build and run
+make rv64 RV64_PREFIX=riscv-none-elf-
+qemu-riscv64 -cpu rv64,v=true build/q15_axpy_rv64.elf
+```
 
 ---
 
